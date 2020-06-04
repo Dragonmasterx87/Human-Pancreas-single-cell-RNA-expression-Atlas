@@ -51,7 +51,7 @@ EMTAB5061$sample <- "EMTAB5061"
 # Create a list of datasets containing seurat objects
 pancreas.list <- list("GSE81076" = GSE81076, "GSE85241" =GSE85241, "GSE86469" = GSE86469, "GSE84133" = GSE84133, "EMTAB5061" = EMTAB5061)
 
-# Run SCtransform
+# Run SCtransform (computationally intensive step, takes time to perform)
 for (i in 1:length(pancreas.list)) {
   pancreas.list[[i]] <- SCTransform(pancreas.list[[i]], verbose = TRUE)
 }
@@ -66,43 +66,86 @@ pancreas.anchors <- FindIntegrationAnchors(object.list = pancreas.list, normaliz
                                            anchor.features = pancreas.features, verbose = TRUE)
 pancreas.integrated <- IntegrateData(anchorset = pancreas.anchors, normalization.method = "SCT", 
                                      verbose = TRUE)
-pancreas.integratedx <- pancreas.integrated
-pancreas.integrated <- pancreas.integratedx 
 
 # Normalize based on RNA
-pancreas.integrated <- NormalizeData(pancreas.integrated, normalization.method = "LogNormalize", assay = "RNA", verbose = TRUE)
-
-# Normalize based on SCT:
-pancreas.anchors <- FindIntegrationAnchors(object.list = pancreas.list, normalization.method = "SCT", 
-                                           anchor.features = pancreas.features, verbose = TRUE)
-pancreas.integrated <- IntegrateData(anchorset = pancreas.anchors, normalization.method = "SCT", 
+pancreas.integrated <- NormalizeData(pancreas.integrated, normalization.method = "LogNormalize", assay = "RNA", scale.factor = 1e6, 
                                      verbose = TRUE)
 
-# Visualization Clustering
+#Clustering
 pancreas.integrated <- RunPCA(pancreas.integrated, verbose = TRUE)
+pancreas.integrated <- FindNeighbors(pancreas.integrated, dims = 1:30)
+pancreas.integrated <- FindClusters(pancreas.integrated, resolution = 1.2)
+
+# Visualization Clustering
 pancreas.integrated <- RunUMAP(pancreas.integrated, dims = 1:30)
-plots <- DimPlot(pancreas.integrated, group.by = c("tech", "celltype"))
+plots <- DimPlot(pancreas.integrated, group.by = c("sample"))
 plots & theme(legend.position = "top") & guides(color = guide_legend(nrow = 3, byrow = TRUE, 
                                                                      override.aes = list(size = 3)))
+DimPlot(pancreas.integrated)
 
-# Normalize RNA assay for plotting
-DefaultAssay(object = pancreas.integrated) <- "RNA"
-pancreas.integrated <- NormalizeData(pancreas.integrated, normalization.method = "LogNormalize", scale.factor = 1e6)
+# Organize clusters
+plot <- DimPlot(pancreas.integrated, reduction = "umap")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "beta")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "alpha")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "delta")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "epsilon")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "gamma")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "ductal")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "acinar")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "macrophage")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "Tcell")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "endothelial")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "quiescent stellate")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "activated stellate")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "schwann")
+pancreas.integrated <- CellSelector(plot = plot, object = pancreas.integrated, ident = "mast")
+levels(pancreas.integrated)
 
-# Visualize information
-table(pancreas.integrated$dataset)
+# Saving this information in the metadata slot
+head(Idents(pancreas.integrated))
+pancreas.integrated$CellType <- Idents(pancreas.integrated)
+head(pancreas.integrated@meta.data)
+
+# Run find variable features again running this is questionable, as only the var features from integrated data is useful
+# But Seurat recommends re-running this
 DefaultAssay(object = pancreas.integrated) <- "RNA"
-VlnPlot(pancreas.integrated, c("ACE2", "TMPRSS2"), group.by = "celltype", assay = "RNA", slot = "data")
+pancreas.integrated <- FindVariableFeatures(pancreas.integrated, selection.method = "vst", nfeatures = 3000)
+
+# Define an order of cluster identities remember after this step-
+# cluster re-assignment occurs, which re-assigns clustering in my_levels
+my_levels <- c("beta", "alpha", "delta", "gamma", "epsilon", "ductal", "acinar", "quiescent stellate", "activated stellate", "schwann", "endothelial", "macrophage", "Tcell", "mast")
+head(pancreas.integrated@meta.data$CellType)
+
+# Re-level object@meta.data this just orders the actual metadata slot, so when you pull its already ordered
+pancreas.integrated@meta.data$CellType <- factor(x = pancreas.integrated@meta.data$CellType, levels = my_levels)
+
+save(pancreas.integrated, file="C:/Users/mqadir/Box/Lab 2301/sCell Analysis Project/Refrence Human Pancreas/scRNAseq datasets/Workspace/pancreas.integrated.Robj")
+load("C:/Users/mqadir/Box/Lab 2301/sCell Analysis Project/Refrence Human Pancreas/scRNAseq datasets/Workspace/pancreas.integrated.Robj")
+
+# Check metadata
+head(pancreas.integrated@meta.data)
+table(pancreas.integrated$sample)
+
+# Check activeidents
+head(Idents(pancreas.integrated))
+
+# Change active idents to CellType
+Idents(pancreas.integrated) <- "CellType"
 
 # For UMAP visualization
-DefaultAssay(object = pancreas.integrated) <- "SCT"
+DefaultAssay(object = pancreas.integrated) <- "RNA"
 FeaturePlot(object = pancreas.integrated, 
-            features = c("ACE2"),
+            features = c("SOX10"),
             pt.size = 1,
             cols = c("darkgrey", "red"),
             min.cutoff = 0,
             #max.cutoff = 100,
             order = TRUE)
+
+# Visualize information
+table(pancreas.integrated$dataset)
+DefaultAssay(object = pancreas.integrated) <- "RNA"
+VlnPlot(pancreas.integrated, c("ACE2", "TMPRSS2"), group.by = "CellType", assay = "RNA", slot = "data")
 
 # Set cell identity to sample identity so that you can extraxt cell type information for plotting
 Idents(object = pancreas.integrated) <- pancreas.integrated@meta.data$celltype
