@@ -78,9 +78,9 @@ pancreas.integrated <- FindClusters(pancreas.integrated, resolution = 1.2)
 
 # Visualization Clustering
 pancreas.integrated <- RunUMAP(pancreas.integrated, dims = 1:30)
-plots <- DimPlot(pancreas.integrated, group.by = c("sample"))
-plots & theme(legend.position = "top") & guides(color = guide_legend(nrow = 3, byrow = TRUE, 
-                                                                     override.aes = list(size = 3)))
+plots <- DimPlot(pancreas.integrated, group.by = c("sample", "CellType"))
+plots & theme(legend.position = "right") & guides(color = guide_legend(nrow = 14, byrow = TRUE,
+                                                                     override.aes = list(size = 5)))
 DimPlot(pancreas.integrated)
 
 # Organize clusters
@@ -135,7 +135,7 @@ Idents(pancreas.integrated) <- "CellType"
 # For UMAP visualization
 DefaultAssay(object = pancreas.integrated) <- "RNA"
 FeaturePlot(object = pancreas.integrated, 
-            features = c("SOX10"),
+            features = c("ACE2"),
             pt.size = 1,
             cols = c("darkgrey", "red"),
             min.cutoff = 0,
@@ -143,9 +143,10 @@ FeaturePlot(object = pancreas.integrated,
             order = TRUE)
 
 # Visualize information
-table(pancreas.integrated$dataset)
+table(pancreas.integrated$sample)
 DefaultAssay(object = pancreas.integrated) <- "RNA"
 VlnPlot(pancreas.integrated, c("ACE2", "TMPRSS2"), group.by = "CellType", assay = "RNA", slot = "data")
+VlnPlot(pancreas.integrated, c("GABRA1"), group.by = "CellType", assay = "RNA", slot = "data")
 
 # Set cell identity to sample identity so that you can extraxt cell type information for plotting
 Idents(object = pancreas.integrated) <- pancreas.integrated@meta.data$celltype
@@ -155,14 +156,14 @@ betacells <- subset(pancreas.integrated, idents = c("beta"))
 
 # Violin plot
 DefaultAssay(object = betacells) <- "RNA"
-VlnPlot(object = betacells, features = c("ACE2", "TMPRSS2"), group.by = "tech")
+VlnPlot(object = betacells, features = c("ACE2", "TMPRSS2"), group.by = "sample", slot = "data")
 
 # How can I extract expression matrix for all beta cells
 alphacells <- subset(pancreas.integrated, idents = c("alpha"))
 
 # Violin plot
 DefaultAssay(object = alphacells) <- "RNA"
-VlnPlot(object = alphacells, features = c("ACE2", "TMPRSS2"), group.by = "tech", slot = "data")
+VlnPlot(object = alphacells, features = c("ACE2", "TMPRSS2"), group.by = "sample", slot = "data")
 
 # Set cell identity to sample identity
 Idents(object = pancreas.integrated) <- pancreas.integrated@meta.data$celltype
@@ -172,4 +173,4 @@ beta.integrated.markers <- FindAllMarkers(object = pancreas.integrated, slot = '
 
 # How can I calculate the average expression of all cells within a cluster?
 cluster.averages <- AverageExpression(pancreas.integrated, assay= "RNA", slot = "data")
-head(cluster.averages[["RNA"]][c("ACE2", "TMPRSS2"), 1:13])
+head(cluster.averages[["RNA"]][c("ACE2", "TMPRSS2"), 1:14])
